@@ -1,0 +1,30 @@
+# Copyright 2023 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+name: pluto CI checks
+on:
+  workflow_call:
+  pull_request:
+
+jobs:
+  inclusive-naming-check:
+    name: Inclusive naming check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Run tests
+        uses: get-woke/woke-action@v0
+        with:
+          fail-on-error: true
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install dependencies
+        run: python3 -m pip install tox
+      - name: Run linters
+        run: tox -e lint

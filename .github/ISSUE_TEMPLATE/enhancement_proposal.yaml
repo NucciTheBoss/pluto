@@ -1,0 +1,20 @@
+# Copyright 2023 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+name: Enhancement Proposal
+description: File an enhancement proposal
+labels: ["Type: Enhancement", "Status: Triage"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Thank you for taking the time to fill out this enhancement proposal! Before submitting your proposal, please
+        make sure there isn't a pre-existing similar proposal. If there is, please join that discussion instead.
+  - type: textarea
+    id: enhancement-proposal
+    attributes:
+      label: Enhancement Proposal
+      description: >
+        Describe the enhancement you would like to see in as much detail as needed.
+    validations:
+      required: true
