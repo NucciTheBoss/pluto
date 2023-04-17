@@ -15,7 +15,7 @@ setup(
     python_requires=">=3.8",
     packages=find_packages(
         where="src",
-        include=["pluto"],
+        include=["pluto*"],
     ),
     package_dir={"": "src"},
     entry_points={"console_scripts": ["pluto=pluto.main:pluto"]},
