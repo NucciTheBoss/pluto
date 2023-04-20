@@ -18,7 +18,7 @@ setup(
         include=["pluto*"],
     ),
     package_dir={"": "src"},
-    entry_points={"console_scripts": ["pluto=pluto.main:pluto"]},
+    entry_points={"console_scripts": ["pluto=pluto.main:main"]},
     install_requires=[
         "craft-cli==1.2.0",
         "juju==3.1.0.1"
