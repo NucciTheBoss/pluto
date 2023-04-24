@@ -15,9 +15,9 @@ Pluto showcases the [__Charmed HPC__](https://ubuntu.com/hpc) project by automat
 bootstrapping a micro-HPC cluster. The following services are deployed by Pluto to build the
 cluster:
 
-- SLURM + Munge
-- GLAuth + SSSD
-- NFSv4
+- SLURM + Munge -> Provides workload scheduling and resource management.
+- GLAuth + SSSD -> Provides identity management service for users and groups.
+- NFSv4 -> Provides shared filesystem.
 
 After several minutes, you will have a fully-functional charmed micro-HPC cluster at your
 fingertips! Take the cluster for a spin and see how Ubuntu can meet your HPC needs!
