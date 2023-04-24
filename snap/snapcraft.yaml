@@ -110,7 +110,6 @@ apps:
       - network-bind
       - ssh-public-keys
       - dot-local-share-juju
-      - juju-client-observe
     environment:
       PATH: $PATH:$SNAP/juju/bin
       JUJU_DATA: $SNAP_REAL_HOME/.local/share/juju
