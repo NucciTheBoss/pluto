@@ -86,7 +86,7 @@ description: |
   cluster to function, it is strongly recommended to use another cloud such as OpenStack or MAAS.
 
 base: core22
-grade: devel
+grade: stable
 confinement: strict
 compression: lzo
 
