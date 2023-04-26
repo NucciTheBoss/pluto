@@ -17,7 +17,7 @@ program hpcsee
 
     ! Identify target dataset
     if(command_argument_count().ne.1) then
-        write(*,*) "Error: Please specify CSV dataset file."
+        print *, "Error: Please specify CSV dataset file."
         stop
     end if
     call get_command_argument(1, filename)
