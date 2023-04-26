@@ -47,7 +47,8 @@ description: |
      juju bootstrap
   
   You will be taken an interactive dialog to configure your cloud controller.
-  Please visit the Juju documentation for specific information on how to bootstrap a Juju controller for your target cloud.
+  Please visit the Juju documentation for specific information on how to bootstrap 
+  a Juju controller for your target cloud.
   
   __Bootstrapping your micro-HPC cloud__
   
