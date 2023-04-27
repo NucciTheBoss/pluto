@@ -1,7 +1,7 @@
 ! Copyright 2023 Canonical Ltd.
 ! See LICENSE file for licensing details.
 
-program hpcsee
+program hpsee
     implicit none
 
     ! Declare types
@@ -53,6 +53,6 @@ program hpcsee
     print "(1x, a, 11x, i2, a)", "Mantic Macaw:", nint((c_macaw / 150) * 100), "%"
     print "(1x, a, 3x, i2, a)", "Boisterous Barracuda:", nint((c_barracuda / 150) * 100), "%"
     print *, ""
-    print *, "Generating what mascot might look like..."
+    print *, "Generating what next mascot may look like..."
 
-end program hpcsee
+end program hpsee
