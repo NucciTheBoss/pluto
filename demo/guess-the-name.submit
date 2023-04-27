@@ -1,0 +1,15 @@
+#!/bin/bash
+# Copyright 2023 Canonical Ltd.
+# See LICENSE file for licensing details
+
+#SBATCH --job-name=guess-the-distro
+#SBATCH --partition=osd-slurmd
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=500mb
+#SBATCH --time=00:00:30
+#SBATCH --error=research.err
+#SBATCH --output=research.out
+
+./hpsee ./distro_name_dataset.csv
