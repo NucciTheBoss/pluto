@@ -95,7 +95,7 @@ async def _bootstrap(name: str) -> None:
             cluster.deploy("slurmd", channel="edge", num_units=3, base="ubuntu@22.04"),
             cluster.deploy("slurmdbd", channel="edge", num_units=1, base="ubuntu@22.04"),
             cluster.deploy("slurmrestd", channel="edge", num_units=1, base="ubuntu@22.04"),
-            cluster.deploy("mysql", channel="edge", num_units=1, base="ubuntu@22.04"),
+            cluster.deploy("mysql", channel="8.0/edge", num_units=1, base="ubuntu@22.04"),
             cluster.deploy(
                 "mysql-router",
                 application_name="slurmdbd-mysql-router",
