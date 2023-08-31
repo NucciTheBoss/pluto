@@ -12,7 +12,9 @@ import asyncio
 import pathlib
 import tempfile
 import textwrap
-from typing import Optional
+from pathlib import Path
+from typing import Any, Dict, Optional
+from urllib import request
 from zipfile import ZipFile
 
 from craft_cli import BaseCommand, emit
@@ -82,23 +84,83 @@ glauth_cfg = """
 """
 
 
-async def _bootstrap(name: str) -> None:
+def _parse_constraints(constraints: str) -> Dict[str, Any]:
+    """Parse Juju constraints and return as dict.
+
+    Args:
+        constraints: Juju constraints line to parse.
+
+    Yields:
+        Parsed constraint values.
+    """
+    for constraint in constraints.split(","):
+        key, value = constraint.split("=")
+        yield key.replace("-", "_"), value
+
+
+async def _bootstrap(
+    name: str,
+    num_compute: int,
+    compute_constraint: Optional[Dict[str, str]] = None,
+    control_constraint: Optional[Dict[str, str]] = None,
+) -> None:
     """Bootstrap a new HPC cluster using Juju.
 
     Args:
         name: Name to use for the new HPC cluster.
+        num_compute: Number of compute nodes to deploy.
+        compute_constraint: Constraints to apply to compute plane nodes.
+        control_constraint: Constraints to apply to control plane nodes.
     """
     async with Cluster(name) as cluster:
-        emit.progress("Deploying HPC services")
+        emit.progress("Deploying HPC services...")
         await asyncio.gather(
-            cluster.deploy("slurmctld", channel="edge", num_units=1, base="ubuntu@22.04"),
-            cluster.deploy("slurmd", channel="edge", num_units=3, base="ubuntu@22.04"),
-            cluster.deploy("slurmdbd", channel="edge", num_units=1, base="ubuntu@22.04"),
-            cluster.deploy("slurmrestd", channel="edge", num_units=1, base="ubuntu@22.04"),
-            cluster.deploy("mysql", channel="8.0/edge", num_units=1, base="ubuntu@22.04"),
+            cluster.deploy(
+                "slurmctld",
+                application_name="slurm-controller",
+                channel="edge",
+                num_units=1,
+                base="ubuntu@22.04",
+                constraints=control_constraint,
+                config={"custom-slurm-repo": "ppa:ubuntu-hpc/slurm-wlm-23.02"},
+            ),
+            cluster.deploy(
+                "slurmd",
+                application_name="compute",
+                channel="edge",
+                num_units=num_compute,
+                base="ubuntu@22.04",
+                constraints=compute_constraint,
+                config={"custom-slurm-repo": "ppa:ubuntu-hpc/slurm-wlm-23.02"},
+            ),
+            cluster.deploy(
+                "slurmdbd",
+                application_name="slurm-database",
+                channel="edge",
+                num_units=1,
+                base="ubuntu@22.04",
+                constraints=control_constraint,
+                config={"custom-slurm-repo": "ppa:ubuntu-hpc/slurm-wlm-23.02"},
+            ),
+            cluster.deploy(
+                "slurmrestd",
+                application_name="slurm-restapi",
+                channel="edge",
+                num_units=1,
+                base="ubuntu@22.04",
+                constraints=control_constraint,
+                config={"custom-slurm-repo": "ppa:ubuntu-hpc/slurm-wlm-23.02"},
+            ),
+            cluster.deploy(
+                "mysql",
+                channel="8.0/edge",
+                num_units=1,
+                base="ubuntu@22.04",
+                constraints=control_constraint,
+            ),
             cluster.deploy(
                 "mysql-router",
-                application_name="slurmdbd-mysql-router",
+                application_name="slurm-database-mysql-router",
                 channel="dpe/edge",
                 num_units=0,
                 base="ubuntu@22.04",
@@ -110,6 +172,7 @@ async def _bootstrap(name: str) -> None:
                 channel="edge",
                 num_units=1,
                 base="ubuntu@22.04",
+                constraints=control_constraint,
             ),
             cluster.deploy(
                 "nfs-client",
@@ -125,47 +188,40 @@ async def _bootstrap(name: str) -> None:
                 channel="edge",
                 num_units=1,
                 base="ubuntu@22.04",
+                constraints=control_constraint,
             ),
             cluster.deploy(
-                "ubuntu", application_name="nfs-server", num_units=1, base="ubuntu@22.04"
+                "ubuntu",
+                application_name="nfs-server",
+                num_units=1,
+                base="ubuntu@22.04",
+                constraints=control_constraint,
             ),
         )
 
-        emit.progress("Integrating deployed HPC services")
+        emit.progress("Attaching NHC to compute nodes...")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            nhc = Path(tmpdir) / "lbnl-nhc-1.4.3.tar.gz"
+            request.urlretrieve(
+                f"https://github.com/mej/nhc/releases/download/1.4.3/{nhc.name}", nhc
+            )
+            await cluster.attach_resource("compute", {"nhc": nhc})
+
+        emit.progress("Integrating deployed HPC services...")
         await asyncio.gather(
-            cluster.integrate("slurmd:slurmd", "slurmctld:slurmd"),
-            cluster.integrate("slurmrestd:slurmrestd", "slurmctld:slurmrestd"),
-            cluster.integrate("slurmdbd:slurmdbd", "slurmctld:slurmdbd"),
-            cluster.integrate("slurmdbd-mysql-router:backend-database", "mysql:database"),
-            cluster.integrate("slurmdbd:database", "slurmdbd-mysql-router:database"),
-            cluster.integrate("slurmd:juju-info", "home:juju-info"),
-            cluster.integrate("slurmctld:juju-info", "home:juju-info"),
-            cluster.integrate("slurmd:juju-info", "sssd:juju-info"),
-            cluster.integrate("slurmctld:juju-info", "sssd:juju-info"),
+            cluster.integrate("compute:slurmd", "slurm-controller:slurmd"),
+            cluster.integrate("slurm-restapi:slurmrestd", "slurm-controller:slurmrestd"),
+            cluster.integrate("slurm-database:slurmdbd", "slurm-controller:slurmdbd"),
+            cluster.integrate("slurm-database-mysql-router:backend-database", "mysql:database"),
+            cluster.integrate("slurm-database:database", "slurm-database-mysql-router:database"),
+            cluster.integrate("compute:juju-info", "home:juju-info"),
+            cluster.integrate("slurm-controller:juju-info", "home:juju-info"),
+            cluster.integrate("compute:juju-info", "sssd:juju-info"),
+            cluster.integrate("slurm-controller:juju-info", "sssd:juju-info"),
             cluster.integrate("nfs-server:juju-info", "sssd:juju-info"),
         )
 
-        emit.progress("Provisioning identity management service")
-        async with cluster.quick_fire():
-            await cluster.wait(apps=["glauth"], status="active", timeout=1200)
-        with tempfile.NamedTemporaryFile(suffix=".zip") as cfg:
-            with ZipFile(cfg.name, "w") as cfg_zip:
-                cfg_zip.writestr("microhpc.cfg", glauth_cfg)
-            await cluster.attach_resource("glauth", {"config": cfg.name})
-        for unit in cluster.units("glauth"):
-            result = await unit.run_action(
-                "set-confidential",
-                **{
-                    "ldap-password": "mysecret",
-                    "ldap-default-bind-dn": "cn=serviceuser,ou=svcaccts,dc=glauth,dc=com",
-                },
-            )
-            await result.wait()
-
-        emit.progress("Integrating identity management service")
-        await cluster.integrate("glauth:ldap-client", "sssd:ldap-client")
-
-        emit.progress("Provisioning NFS server")
+        emit.progress("Provisioning NFS server...")
         async with cluster.quick_fire():
             await cluster.wait(apps=["nfs-server"], status="active", timeout=1200)
         for unit in cluster.units("nfs-server"):
@@ -189,13 +245,36 @@ async def _bootstrap(name: str) -> None:
         await cluster.get_app("home-nfs-proxy").set_config({"endpoint": endpoint})
         await cluster.integrate("home-nfs-proxy:nfs-share", "home:nfs-share")
 
-        emit.progress("Provisioning default user 'researcher'")
+        emit.progress("Provisioning identity management service...")
         async with cluster.quick_fire():
-            await cluster.wait(apps=["sssd"], status="active", timeout=1200)
-        for unit in cluster.units("sssd"):
-            if await unit.is_leader_from_status():
-                await unit.ssh("sudo mkdir -p /home/researcher")
-                await unit.ssh("sudo chown researcher /home/researcher")
+            await cluster.wait(apps=["glauth"], status="active", timeout=1200)
+        with tempfile.NamedTemporaryFile(suffix=".zip") as cfg:
+            with ZipFile(cfg.name, "w") as cfg_zip:
+                cfg_zip.writestr("microhpc.cfg", glauth_cfg)
+            await cluster.attach_resource("glauth", {"config": cfg.name})
+        for unit in cluster.units("glauth"):
+            result = await unit.run_action(
+                "set-confidential",
+                **{
+                    "ldap-password": "mysecret",
+                    "ldap-default-bind-dn": "cn=serviceuser,ou=svcaccts,dc=glauth,dc=com",
+                },
+            )
+            await result.wait()
+
+        emit.progress("Integrating identity management service...")
+        await cluster.integrate("glauth:ldap-client", "sssd:ldap-client")
+
+        emit.progress("Provisioning default user 'researcher'...")
+        async with cluster.quick_fire():
+            await cluster.wait(apps=["sssd"], status="active", raise_on_error=False, timeout=1200)
+        for unit in cluster.units("nfs-server"):
+            await unit.ssh("sudo mkdir -p /home/researcher")
+            await unit.ssh("sudo chown -R researcher /home/researcher")
+
+        emit.progress("Starting compute nodes...")
+        for unit in cluster.units("compute"):
+            await unit.run_action("node-configured")
 
 
 class BootstrapCommand(BaseCommand):
@@ -214,9 +293,39 @@ class BootstrapCommand(BaseCommand):
         """
     )
 
+    def fill_parser(self, parser: argparse.ArgumentParser) -> None:
+        """Define arguments and flags to pass to bootstrap."""
+        parser.add_argument("name", type=str, help="Name for deployed cluster.")
+        parser.add_argument(
+            "--compute", type=int, default=1, help="Number of compute nodes to bootstrap."
+        )
+        parser.add_argument(
+            "--compute-plane-constraints",
+            type=str,
+            required=False,
+            help="Constraints to pass to compute nodes.",
+        )
+        parser.add_argument(
+            "--control-plane-constraints",
+            type=str,
+            required=False,
+            help="Constraints to pass to control plane nodes.",
+        )
+
     def run(self, parsed_args: argparse.Namespace) -> Optional[int]:
         """Bootstrap new HPC cluster."""
-        emit.message("Deploying MicroHPC cluster. This will take several minutes...")
+        compute_constraints = None
+        control_constraints = None
+        if c := parsed_args.compute_plane_constraints:
+            compute_constraints = dict(_parse_constraints(c))
+        if c := parsed_args.control_plane_constraints:
+            control_constraints = dict(_parse_constraints(c))
+
+        name = parsed_args.name
+        num_compute = parsed_args.compute
+        emit.message(f"Deploying cluster {name}. This will take several minutes...")
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(_bootstrap("microhpc"))
-        emit.message("MicroHPC cluster deployed. Cluster will stabilize after several minutes.")
+        loop.run_until_complete(
+            _bootstrap(name, num_compute, compute_constraints, control_constraints)
+        )
+        emit.message(f"{name} cluster deployed. Cluster will stabilize soon...")
