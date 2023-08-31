@@ -12,7 +12,7 @@
 Pluto is proof-of-concept application for demonstrating the work that the 
 High-Performance Computing (HPC) team at Canonical has accomplished over the past several months.
 Pluto showcases the [__Charmed HPC__](https://ubuntu.com/hpc) project by automatically
-bootstrapping a micro-HPC cluster. The following services are deployed by Pluto to build the
+bootstrapping a working cluster. The following services are deployed by Pluto to build the
 cluster:
 
 - SLURM + Munge -> Provides workload scheduling and resource management.
@@ -63,32 +63,33 @@ to install pluto:
 sudo snap install pluto 
 ```
 
-Now use the following command to bootstrap your micro-HPC cluster:
+Now use the following command to bootstrap your HPC cluster:
 
 ```shell
-pluto bootstrap
+pluto bootstrap test-cluster
 ```
 
-In several minutes you will now have access to your very own micro-HPC cluster! Have fun!
+In several minutes you will now have access to your very own HPC cluster! Have fun!
 
 ### Appendix: Using LXD
 
 pluto will not initially work with LXD due to LXD containers being initially unable to mount
 or export NFS shares. This has to do with LXD containers AppArmor configuration. To enable NFS
 exporting/mounting, use the following commands to modify the default LXD profile on your system.
-This needs to be done __before__ you bootstrap the micro-HPC cluster with pluto:
+This needs to be done __before__ you bootstrap the HPC cluster with pluto:
 
 ```shell
 lxc profile set default security.privileged true
 lxc profile set default raw.apparmor 'mount fstype=nfs*, mount fstype=rpc_pipefs,'
 ```
 
-Note: Given that you need to elevate the privileges of the LXD containers for the micro-HPC
-cluster to function, it is strongly recommended to use another cloud such as OpenStack or MAAS.
+Note: Given that you need to elevate the privileges of the LXD containers for the HPC
+cluster to function, it is strongly recommended to use another cloud provider such as 
+OpenStack or MAAS.
 
 ## Contributing
 
-Pluto is just a proof-of-concept for deploying charmed micro-HPC clusters, so it most likely
+Pluto is just a proof-of-concept for deploying charmed HPC clusters, so it most likely
 will not receive heavy feature development. However, if you notice any issues, feel free to open
 a bug report!
 

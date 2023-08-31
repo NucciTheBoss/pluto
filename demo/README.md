@@ -27,7 +27,7 @@ sudo snap connect pluto:juju-bin juju:juju-bin
 1. Showcase pluto bootstrapping cluster.
 
 ```shell
-pluto bootstrap
+pluto bootstrap test-cluster
 ```
 
 2. ssh into slurmctld/0 and log in as user _researcher_
