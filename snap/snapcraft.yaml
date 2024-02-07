@@ -2,7 +2,7 @@
 # See LICENSE file for licensing details.
 
 name: pluto
-version: 0.1.0
+adopt-info: pluto
 license: GPL-3.0
 summary: A swiss-army knife for managing HPC clusters built with Ubuntu
 description: |
@@ -90,6 +90,9 @@ parts:
     source: .
     stage-packages:
       - openssh-client
+    override-pull: |
+      snapcraftctl pull
+      snapcraftctl set-version "$(grep -m 1 version pyproject.toml | tr -s ' ' | tr -d '"' | tr -d "'" | cut -d' ' -f3)"
 
 apps:
   pluto:
