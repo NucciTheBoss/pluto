@@ -101,6 +101,7 @@ def _parse_constraints(constraints: str) -> Dict[str, Any]:
 async def _bootstrap(
     name: str,
     num_compute: int,
+    include_identity: bool,
     compute_constraint: Optional[Dict[str, str]] = None,
     control_constraint: Optional[Dict[str, str]] = None,
 ) -> None:
@@ -109,6 +110,7 @@ async def _bootstrap(
     Args:
         name: Name to use for the new HPC cluster.
         num_compute: Number of compute nodes to deploy.
+        include_identity: Whether or not to include identity services.
         compute_constraint: Constraints to apply to compute plane nodes.
         control_constraint: Constraints to apply to control plane nodes.
     """
@@ -117,39 +119,31 @@ async def _bootstrap(
         await asyncio.gather(
             cluster.deploy(
                 "slurmctld",
-                application_name="slurm-controller",
                 channel="edge",
                 num_units=1,
                 base="ubuntu@22.04",
                 constraints=control_constraint,
-                config={"custom-slurm-repo": "ppa:ubuntu-hpc/slurm-wlm-23.02"},
             ),
             cluster.deploy(
                 "slurmd",
-                application_name="compute",
                 channel="edge",
                 num_units=num_compute,
                 base="ubuntu@22.04",
                 constraints=compute_constraint,
-                config={"custom-slurm-repo": "ppa:ubuntu-hpc/slurm-wlm-23.02"},
             ),
             cluster.deploy(
                 "slurmdbd",
-                application_name="slurm-database",
                 channel="edge",
                 num_units=1,
                 base="ubuntu@22.04",
                 constraints=control_constraint,
-                config={"custom-slurm-repo": "ppa:ubuntu-hpc/slurm-wlm-23.02"},
             ),
             cluster.deploy(
                 "slurmrestd",
-                application_name="slurm-restapi",
                 channel="edge",
                 num_units=1,
                 base="ubuntu@22.04",
                 constraints=control_constraint,
-                config={"custom-slurm-repo": "ppa:ubuntu-hpc/slurm-wlm-23.02"},
             ),
             cluster.deploy(
                 "mysql",
@@ -160,19 +154,10 @@ async def _bootstrap(
             ),
             cluster.deploy(
                 "mysql-router",
-                application_name="slurm-database-mysql-router",
+                application_name="slurmdbd-mysql-router",
                 channel="dpe/edge",
                 num_units=0,
                 base="ubuntu@22.04",
-            ),
-            cluster.deploy("sssd", channel="edge", num_units=0, base="ubuntu@22.04"),
-            cluster.deploy(
-                "glauth",
-                config={"ldap-search-base": "dc=glauth,dc=com", "tls": "true"},
-                channel="edge",
-                num_units=1,
-                base="ubuntu@22.04",
-                constraints=control_constraint,
             ),
             cluster.deploy(
                 "nfs-client",
@@ -205,20 +190,17 @@ async def _bootstrap(
             request.urlretrieve(
                 f"https://github.com/mej/nhc/releases/download/1.4.3/{nhc.name}", nhc
             )
-            await cluster.attach_resource("compute", {"nhc": nhc})
+            await cluster.attach_resource("slurmd", {"nhc": nhc})
 
         emit.progress("Integrating deployed HPC services...")
         await asyncio.gather(
-            cluster.integrate("compute:slurmd", "slurm-controller:slurmd"),
-            cluster.integrate("slurm-restapi:slurmrestd", "slurm-controller:slurmrestd"),
-            cluster.integrate("slurm-database:slurmdbd", "slurm-controller:slurmdbd"),
-            cluster.integrate("slurm-database-mysql-router:backend-database", "mysql:database"),
-            cluster.integrate("slurm-database:database", "slurm-database-mysql-router:database"),
-            cluster.integrate("compute:juju-info", "home:juju-info"),
-            cluster.integrate("slurm-controller:juju-info", "home:juju-info"),
-            cluster.integrate("compute:juju-info", "sssd:juju-info"),
-            cluster.integrate("slurm-controller:juju-info", "sssd:juju-info"),
-            cluster.integrate("nfs-server:juju-info", "sssd:juju-info"),
+            cluster.integrate("slurmd:slurmd", "slurmctld:slurmd"),
+            cluster.integrate("slurmrestd:slurmrestd", "slurmctld:slurmrestd"),
+            cluster.integrate("slurmdbd:slurmdbd", "slurmctld:slurmdbd"),
+            cluster.integrate("slurmdbd-mysql-router:backend-database", "mysql:database"),
+            cluster.integrate("slurmdbd:database", "slurmdbd-mysql-router:database"),
+            cluster.integrate("slurmd:juju-info", "home:juju-info"),
+            cluster.integrate("slurmctld:juju-info", "home:juju-info"),
         )
 
         emit.progress("Provisioning NFS server...")
@@ -245,35 +227,53 @@ async def _bootstrap(
         await cluster.get_app("home-nfs-proxy").set_config({"endpoint": endpoint})
         await cluster.integrate("home-nfs-proxy:nfs-share", "home:nfs-share")
 
-        emit.progress("Provisioning identity management service...")
-        async with cluster.quick_fire():
-            await cluster.wait(apps=["glauth"], status="active", timeout=1200)
-        with tempfile.NamedTemporaryFile(suffix=".zip") as cfg:
-            with ZipFile(cfg.name, "w") as cfg_zip:
-                cfg_zip.writestr("microhpc.cfg", glauth_cfg)
-            await cluster.attach_resource("glauth", {"config": cfg.name})
-        for unit in cluster.units("glauth"):
-            result = await unit.run_action(
-                "set-confidential",
-                **{
-                    "ldap-password": "mysecret",
-                    "ldap-default-bind-dn": "cn=serviceuser,ou=svcaccts,dc=glauth,dc=com",
-                },
+        if include_identity:
+            emit.progress("Provisioning identity services...")
+            await asyncio.gather(
+                cluster.deploy("sssd", channel="edge", num_units=0, base="ubuntu@22.04"),
+                cluster.deploy(
+                    "glauth",
+                    config={"ldap-search-base": "dc=glauth,dc=com", "tls": "true"},
+                    channel="edge",
+                    num_units=1,
+                    base="ubuntu@22.04",
+                    constraints=control_constraint,
+                ),
             )
-            await result.wait()
+            await asyncio.gather(
+                cluster.integrate("slurmd:juju-info", "sssd:juju-info"),
+                cluster.integrate("slurmctld:juju-info", "sssd:juju-info"),
+                cluster.integrate("nfs-server:juju-info", "sssd:juju-info"),
+            )
+            # Add custom configuration for glauth.
+            async with cluster.quick_fire():
+                await cluster.wait(apps=["glauth"], status="active", timeout=1200)
+            with tempfile.NamedTemporaryFile(suffix=".zip") as cfg:
+                with ZipFile(cfg.name, "w") as cfg_zip:
+                    cfg_zip.writestr("microhpc.cfg", glauth_cfg)
+                await cluster.attach_resource("glauth", {"config": cfg.name})
+            for unit in cluster.units("glauth"):
+                result = await unit.run_action(
+                    "set-confidential",
+                    **{
+                        "ldap-password": "mysecret",
+                        "ldap-default-bind-dn": "cn=serviceuser,ou=svcaccts,dc=glauth,dc=com",
+                    },
+                )
+                await result.wait()
 
-        emit.progress("Integrating identity management service...")
-        await cluster.integrate("glauth:ldap-client", "sssd:ldap-client")
-
-        emit.progress("Provisioning default user 'researcher'...")
-        async with cluster.quick_fire():
-            await cluster.wait(apps=["sssd"], status="active", raise_on_error=False, timeout=1200)
-        for unit in cluster.units("nfs-server"):
-            await unit.ssh("sudo mkdir -p /home/researcher")
-            await unit.ssh("sudo chown -R researcher /home/researcher")
+            emit.progress("Integrating identity management service...")
+            await cluster.integrate("glauth:ldap-client", "sssd:ldap-client")
+    
+            emit.progress("Provisioning default user 'researcher'...")
+            async with cluster.quick_fire():
+                await cluster.wait(apps=["sssd"], status="active", raise_on_error=False, timeout=1200)
+            for unit in cluster.units("nfs-server"):
+                await unit.ssh("sudo mkdir -p /home/researcher")
+                await unit.ssh("sudo chown -R researcher /home/researcher")
 
         emit.progress("Starting compute nodes...")
-        for unit in cluster.units("compute"):
+        for unit in cluster.units("slurmd"):
             await unit.run_action("node-configured")
 
 
@@ -311,6 +311,12 @@ class BootstrapCommand(BaseCommand):
             required=False,
             help="Constraints to pass to control plane nodes.",
         )
+        parser.add_argument(
+            "--include-identity",
+            action='store_true',
+            help="Include glauth and sssd identity management services.",
+        )
+
 
     def run(self, parsed_args: argparse.Namespace) -> Optional[int]:
         """Bootstrap new HPC cluster."""
@@ -323,9 +329,10 @@ class BootstrapCommand(BaseCommand):
 
         name = parsed_args.name
         num_compute = parsed_args.compute
+        include_identity = parsed_args.include_identity
         emit.message(f"Deploying cluster {name}. This will take several minutes...")
         loop = asyncio.get_event_loop()
         loop.run_until_complete(
-            _bootstrap(name, num_compute, compute_constraints, control_constraints)
+            _bootstrap(name, num_compute, include_identity, compute_constraints, control_constraints)
         )
         emit.message(f"{name} cluster deployed. Cluster will stabilize soon...")
