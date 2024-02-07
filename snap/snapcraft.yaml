@@ -88,8 +88,6 @@ parts:
   pluto:
     plugin: python
     source: .
-    python-requirements:
-      - requirements.txt
     stage-packages:
       - openssh-client
 
@@ -101,6 +99,7 @@ apps:
       - network-bind
       - ssh-public-keys
       - dot-local-share-juju
+      - juju-bin
     environment:
       PATH: $PATH:$SNAP/juju/bin
       JUJU_DATA: $SNAP_REAL_HOME/.local/share/juju
