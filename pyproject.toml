@@ -1,5 +1,47 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
+[tool.poetry]
+name = "pluto"
+version = "0.1.0"
+description = "A swiss-army knife for managing HPC clusters built with Ubuntu."
+authors = [
+    "Jason C. Nucciarone",
+]
+maintainers = [
+    "Jason C. Nucciarone <jason.nucciarone@canonical.com>",
+]
+license = "GPL-3.0"
+readme = "README.md"
+repository = "https://github.com/NucciTheBoss/pluto"
+packages = [{ include = "pluto", from = "src/" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Environment :: Console",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+]
+keywords = [
+    "hpc",
+]
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/NucciTheBoss/pluto/issues"
+"Changelog" = "https://github.com/NucciTheBoss/pluto/blob/main/pluto/CHANGELOG.rst"
+
+[tool.poetry.dependencies]
+python = "^3.8.1"
+craft-cli = "^1.2.0"
+juju = "^3.1.0.1"
+
+[tool.poetry.scripts]
+pluto = "pluto.main:main"
 
 # Testing tools configuration
 [tool.coverage.run]
@@ -20,8 +62,8 @@ target-version = ["py38"]
 # Linting tools configuration
 [tool.ruff]
 line-length = 99
-select = ["E", "W", "F", "C", "N", "D", "I001"]
-extend-ignore = [
+lint.select = ["E", "W", "F", "C", "N", "D", "I001"]
+lint.extend-ignore = [
     "D203",
     "D204",
     "D213",
@@ -35,9 +77,13 @@ extend-ignore = [
     "D409",
     "D413",
 ]
-ignore = ["E501", "D107"]
+lint.ignore = ["E501", "D107"]
 extend-exclude = ["__pycache__", "*.egg_info", "__init__.py"]
-per-file-ignores = {"tests/*" = ["D100","D101","D102","D103","D104"]}
+lint.per-file-ignores = {"tests/*" = ["D100","D101","D102","D103","D104"]}
 
-[tool.ruff.mccabe]
+[tool.ruff.lint.mccabe]
 max-complexity = 15
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
