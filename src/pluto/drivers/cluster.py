@@ -3,11 +3,8 @@
 
 """Juju driver for pluto."""
 
-import asyncio
 import contextlib
-import os
-from collections import namedtuple
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, List, Optional
 
 from juju.application import Application
 from juju.controller import Controller
@@ -31,33 +28,6 @@ class ClusterDriverError(Exception):
     def __repr__(self) -> str:
         """String representation of the error."""
         return f"<{type(self).__module__}.{type(self).__name__} {self.args}>"
-
-
-Result = namedtuple("Result", ["exit_code", "stdout", "stderr"])
-
-
-async def _juju(
-    *cmd: str, cwd: Optional[Union[str, os.PathLike]] = None, check: bool = False
-) -> Result:
-    """Asynchronously execute a Juju command.
-
-    Args:
-        *cmd: Juju command to execute.
-        cwd: Directory to execute Juju command from. Default: None.
-        check: Check if Juju command succeeded. Default: False.
-    """
-    proc = await asyncio.create_subprocess_exec(
-        *(["juju"] + [str(c) for c in cmd]),
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        cwd=str(cwd or "."),
-    )
-    _stdout, _stderr = await proc.communicate()
-    stdout, stderr = _stdout.decode("utf8"), _stderr.decode("utf8")
-    if check and proc.returncode != 0:
-        raise ClusterDriverError(f"Juju command {list(cmd)} failed. Reason:\n{(stderr or stdout)}")
-
-    return Result(proc.returncode, stdout, stderr)
 
 
 class Cluster:
@@ -142,15 +112,3 @@ class Cluster:
             application_name: Name application to retrieve.
         """
         return self._model.applications[application_name]
-
-    async def attach_resource(
-        self, application_name: str, resources: Dict[str, os.PathLike]
-    ) -> None:
-        """Attach resource to deployed application.
-
-        Args:
-            application_name: Application to upload resource to.
-            resources: Resources to attach to application.
-        """
-        for k, v in resources.items():
-            await _juju("attach-resource", application_name, f"{k}={v}")
