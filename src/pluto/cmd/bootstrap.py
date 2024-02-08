@@ -165,7 +165,7 @@ async def _bootstrap(
 
         if include_identity:
             emit.progress("Provisioning identity services...")
-            provision_identity(cluster, control_constraint)
+            await provision_identity(cluster, control_constraint)
 
         emit.progress("Starting compute nodes...")
         for unit in cluster.units("slurmd"):
