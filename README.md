@@ -78,6 +78,23 @@ pluto bootstrap test-cluster
 
 In several minutes you will now have access to your very own HPC cluster! Have fun!
 
+### Include identity management services
+You can include identity management services in your deployment by passing the `--include-identity`
+when you invoke the `bootstrap` command.
+
+```shell
+pluto bootstrap myhpccloud --include-identity
+```
+
+### Include VantageHPC integration
+Add your HPC cluster to the VantageHPC platform by setting the `CLIENT_ID` and `CLIENT_SECRET`
+environment variables and passing the `--include-vantage` flag to the `bootstrap` command.
+
+```shell
+CLIENT_ID=blah CLIENT_SECRET=blahblah pluto bootstrap myhpccloud --include-vantage
+```
+
+
 ### Appendix: Using LXD
 
 pluto will not initially work with LXD due to LXD containers being initially unable to mount

@@ -9,7 +9,9 @@
 
 import argparse
 import asyncio
+import os
 import pathlib
+import sys
 import tempfile
 import textwrap
 from pathlib import Path
@@ -19,6 +21,7 @@ from urllib import request
 from craft_cli import BaseCommand, emit
 
 from pluto.addons.identity import provision_identity
+from pluto.addons.vantage import provision_vantage
 from pluto.drivers import Cluster
 
 
@@ -42,6 +45,7 @@ async def _bootstrap(
     include_identity: bool,
     compute_constraint: Optional[Dict[str, str]] = None,
     control_constraint: Optional[Dict[str, str]] = None,
+    vantage_credentials: Optional[Dict[str, str]] = None,
 ) -> None:
     """Bootstrap a new HPC cluster using Juju.
 
@@ -51,6 +55,7 @@ async def _bootstrap(
         include_identity: Whether or not to include identity services.
         compute_constraint: Constraints to apply to compute plane nodes.
         control_constraint: Constraints to apply to control plane nodes.
+        vantage_credentials: Credentials for the VantageHPC platform.
     """
     async with Cluster(name) as cluster:
         emit.progress("Deploying HPC services...")
@@ -167,6 +172,10 @@ async def _bootstrap(
             emit.progress("Provisioning identity services...")
             await provision_identity(cluster, control_constraint)
 
+        if vantage_credentials:
+            emit.progress("Provisioning jobbergate-agent for VantageHPC...")
+            await provision_vantage(cluster, vantage_credentials)
+
         emit.progress("Starting compute nodes...")
         for unit in cluster.units("slurmd"):
             await unit.run_action("node-configured")
@@ -211,15 +220,33 @@ class BootstrapCommand(BaseCommand):
             action="store_true",
             help="Include glauth and sssd identity management services.",
         )
+        parser.add_argument(
+            "--include-vantage",
+            action="store_true",
+            help="Include jobbergate-agent in the deployment. Need CLIENT_ID and CLIENT_SECRET env vars.",
+        )
 
     def run(self, parsed_args: argparse.Namespace) -> Optional[int]:
         """Bootstrap new HPC cluster."""
         compute_constraints = None
         control_constraints = None
+        vantage_credentials: Optional[Dict[str], [str]] = None
+
         if c := parsed_args.compute_plane_constraints:
             compute_constraints = dict(_parse_constraints(c))
         if c := parsed_args.control_plane_constraints:
             control_constraints = dict(_parse_constraints(c))
+        # Check for the CLIENT_ID and CLIENT_SECRET if --include-vantage is specified.
+        if parsed_args.include_vantage:
+            client_id = os.environ.get("CLIENT_ID")
+            client_secret = os.environ.get("CLIENT_SECRET")
+            if not (client_id and client_secret):
+                emit.message("Please set the CLIENT_ID and CLIENT_SECRET environment variables.")
+                sys.exit(1)
+            vantage_credentials = {
+                "client_id": client_id,
+                "client_secret": client_secret,
+            }
 
         name = parsed_args.name
         num_compute = parsed_args.compute
@@ -228,7 +255,12 @@ class BootstrapCommand(BaseCommand):
         loop = asyncio.get_event_loop()
         loop.run_until_complete(
             _bootstrap(
-                name, num_compute, include_identity, compute_constraints, control_constraints
+                name,
+                num_compute,
+                include_identity,
+                compute_constraints,
+                control_constraints,
+                vantage_credentials,
             )
         )
         emit.message(f"{name} cluster deployed. Cluster will stabilize soon...")
