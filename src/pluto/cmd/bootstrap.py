@@ -116,81 +116,79 @@ async def _bootstrap(
     """
     async with Cluster(name) as cluster:
         emit.progress("Deploying HPC services...")
-        await asyncio.gather(
-            cluster.deploy(
-                "slurmctld",
-                channel="edge",
-                num_units=1,
-                base="ubuntu@22.04",
-                constraints=control_constraint,
-            ),
-            cluster.deploy(
-                "slurmd",
-                channel="edge",
-                num_units=num_compute,
-                base="ubuntu@22.04",
-                constraints=compute_constraint,
-            ),
-            cluster.deploy(
-                "slurmdbd",
-                channel="edge",
-                num_units=1,
-                base="ubuntu@22.04",
-                constraints=control_constraint,
-            ),
-            cluster.deploy(
-                "slurmrestd",
-                channel="edge",
-                num_units=1,
-                base="ubuntu@22.04",
-                constraints=control_constraint,
-            ),
-            cluster.deploy(
-                "mysql",
-                channel="8.0/edge",
-                num_units=1,
-                base="ubuntu@22.04",
-                constraints=control_constraint,
-            ),
-            cluster.deploy(
-                "mysql-router",
-                application_name="slurmdbd-mysql-router",
-                channel="dpe/edge",
-                num_units=0,
-                base="ubuntu@22.04",
-            ),
-            cluster.deploy(
-                "nfs-client",
-                application_name="home",
-                config={"mountpoint": "/home"},
-                channel="edge",
-                num_units=0,
-                base="ubuntu@22.04",
-            ),
-            cluster.deploy(
-                "nfs-server-proxy",
-                application_name="home-nfs-proxy",
-                channel="edge",
-                num_units=1,
-                base="ubuntu@22.04",
-                constraints=control_constraint,
-            ),
-            cluster.deploy(
-                "ubuntu",
-                application_name="nfs-server",
-                num_units=1,
-                base="ubuntu@22.04",
-                constraints=control_constraint,
-            ),
-        )
-
-        emit.progress("Attaching NHC to compute nodes...")
         with tempfile.TemporaryDirectory() as tmpdir:
             nhc = Path(tmpdir) / "lbnl-nhc-1.4.3.tar.gz"
             request.urlretrieve(
                 f"https://github.com/mej/nhc/releases/download/1.4.3/{nhc.name}", nhc
             )
-            await cluster.attach_resource("slurmd", {"nhc": nhc})
+            await asyncio.gather(
+                cluster.deploy(
+                    "slurmctld",
+                    channel="edge",
+                    num_units=1,
+                    base="ubuntu@22.04",
+                    constraints=control_constraint,
+                ),
+                cluster.deploy(
+                    "slurmd",
+                    channel="edge",
+                    num_units=num_compute,
+                    base="ubuntu@22.04",
+                    constraints=compute_constraint,
+                    resources={"nhc": nhc},
+                ),
+                cluster.deploy(
+                    "slurmdbd",
+                    channel="edge",
+                    num_units=1,
+                    base="ubuntu@22.04",
+                    constraints=control_constraint,
+                ),
+                cluster.deploy(
+                    "slurmrestd",
+                    channel="edge",
+                    num_units=1,
+                    base="ubuntu@22.04",
+                    constraints=control_constraint,
+                ),
+                cluster.deploy(
+                    "mysql",
+                    channel="8.0/edge",
+                    num_units=1,
+                    base="ubuntu@22.04",
+                    constraints=control_constraint,
+                ),
+                cluster.deploy(
+                    "mysql-router",
+                    application_name="slurmdbd-mysql-router",
+                    channel="dpe/edge",
+                    num_units=0,
+                    base="ubuntu@22.04",
+                ),
+                cluster.deploy(
+                    "nfs-client",
+                    application_name="home",
+                    config={"mountpoint": "/home"},
+                    channel="edge",
+                    num_units=0,
+                    base="ubuntu@22.04",
+                ),
+                cluster.deploy(
+                    "nfs-server-proxy",
+                    application_name="home-nfs-proxy",
+                    channel="edge",
+                    num_units=1,
+                    base="ubuntu@22.04",
+                    constraints=control_constraint,
+                ),
+                cluster.deploy(
+                    "ubuntu",
+                    application_name="nfs-server",
+                    num_units=1,
+                    base="ubuntu@22.04",
+                    constraints=control_constraint,
+                ),
+            )
 
         emit.progress("Integrating deployed HPC services...")
         await asyncio.gather(
