@@ -262,10 +262,12 @@ async def _bootstrap(
 
             emit.progress("Integrating identity management service...")
             await cluster.integrate("glauth:ldap-client", "sssd:ldap-client")
-    
+
             emit.progress("Provisioning default user 'researcher'...")
             async with cluster.quick_fire():
-                await cluster.wait(apps=["sssd"], status="active", raise_on_error=False, timeout=1200)
+                await cluster.wait(
+                    apps=["sssd"], status="active", raise_on_error=False, timeout=1200
+                )
             for unit in cluster.units("nfs-server"):
                 await unit.ssh("sudo mkdir -p /home/researcher")
                 await unit.ssh("sudo chown -R researcher /home/researcher")
@@ -311,10 +313,9 @@ class BootstrapCommand(BaseCommand):
         )
         parser.add_argument(
             "--include-identity",
-            action='store_true',
+            action="store_true",
             help="Include glauth and sssd identity management services.",
         )
-
 
     def run(self, parsed_args: argparse.Namespace) -> Optional[int]:
         """Bootstrap new HPC cluster."""
@@ -331,6 +332,8 @@ class BootstrapCommand(BaseCommand):
         emit.message(f"Deploying cluster {name}. This will take several minutes...")
         loop = asyncio.get_event_loop()
         loop.run_until_complete(
-            _bootstrap(name, num_compute, include_identity, compute_constraints, control_constraints)
+            _bootstrap(
+                name, num_compute, include_identity, compute_constraints, control_constraints
+            )
         )
         emit.message(f"{name} cluster deployed. Cluster will stabilize soon...")

@@ -102,17 +102,10 @@ apps:
       - network-bind
       - ssh-public-keys
       - dot-local-share-juju
-      - juju-bin
     environment:
-      PATH: $PATH:$SNAP/juju/bin
       JUJU_DATA: $SNAP_REAL_HOME/.local/share/juju
 
 plugs:
-  juju-bin:
-    interface: content
-    content: juju
-    target: $SNAP/juju
-
   dot-local-share-juju:
     interface: personal-files
     write:

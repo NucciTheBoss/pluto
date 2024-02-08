@@ -38,7 +38,7 @@ keywords = [
 [tool.poetry.dependencies]
 python = "^3.8.1"
 craft-cli = "^1.2.0"
-juju = "3.1.0.1"
+juju = "^3.1.0.1"
 
 [tool.poetry.scripts]
 pluto = "pluto.main:main"

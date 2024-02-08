@@ -3,11 +3,8 @@
 
 """Juju driver for pluto."""
 
-import asyncio
 import contextlib
-import os
-from collections import namedtuple
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, List, Optional
 
 from juju.application import Application
 from juju.controller import Controller
