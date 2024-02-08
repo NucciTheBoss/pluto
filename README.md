@@ -68,7 +68,6 @@ Connect the snap interfaces needed by `pluto` to complete the installation.
 ```shell
 sudo snap connect pluto:ssh-public-keys
 sudo snap connect pluto:dot-local-share-juju
-sudo snap connect pluto:dot-local-share-juju juju:dot-local-share-juju
 ```
 
 Now use the following command to bootstrap your HPC cluster:
